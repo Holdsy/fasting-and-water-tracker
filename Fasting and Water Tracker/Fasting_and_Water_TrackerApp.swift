@@ -11,7 +11,7 @@ import SwiftUI
 struct Fasting_and_Water_TrackerApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainTabView()
         }
     }
 }

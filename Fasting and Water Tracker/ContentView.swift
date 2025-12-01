@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var viewModel = FastingTrackerViewModel()
+    @ObservedObject var viewModel: FastingTrackerViewModel
     @State private var showCustomFastingWindow = false
     @State private var showCustomWaterAmount = false
     @State private var customFastingHours: String = ""
@@ -28,12 +28,6 @@ struct ContentView: View {
                         
                         // Water Section
                         waterSection
-                        
-                        // Daily Log Section
-                        DailyLogView(viewModel: viewModel)
-                        
-                        // Calendar Section
-                        CalendarMonthView(viewModel: viewModel)
                     }
                     .padding(.horizontal)
                     .padding(.bottom, 20)
@@ -447,5 +441,5 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
+    ContentView(viewModel: FastingTrackerViewModel())
 }
