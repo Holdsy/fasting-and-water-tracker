@@ -23,6 +23,7 @@ class FastingTrackerViewModel: ObservableObject {
     
     // History tracking
     @Published var fastingHistory: [FastingEntry] = []
+    @Published var dailyLogs: [DailyLog] = []
     
     // Common fasting windows
     let commonFastingWindows: [(hours: Int, name: String)] = [
@@ -49,24 +50,40 @@ class FastingTrackerViewModel: ObservableObject {
     // MARK: - Fasting Methods
     
     func startFasting() {
-        fastingStartTime = Date()
+        let calendar = Calendar.current
+        let startTime = Date()
+        fastingStartTime = startTime
         isFasting = true
+        
         // Add to history
-        let entry = FastingEntry(startTime: Date(), fastingWindowHours: fastingWindowHours)
+        let entry = FastingEntry(startTime: startTime, fastingWindowHours: fastingWindowHours)
         fastingHistory.append(entry)
+        
+        // Create daily log for the day fasting started
+        let startDate = calendar.startOfDay(for: startTime)
+        updateOrCreateDailyLog(for: startDate, fastingEntry: entry)
+        
         saveData()
     }
     
     func stopFasting() {
+        let calendar = Calendar.current
+        let endTime = Date()
+        
         // Update the last entry with end time if it exists
         if let lastEntry = fastingHistory.last, lastEntry.endTime == nil {
             let index = fastingHistory.count - 1
             fastingHistory[index] = FastingEntry(
                 startTime: lastEntry.startTime,
-                endTime: Date(),
+                endTime: endTime,
                 fastingWindowHours: lastEntry.fastingWindowHours
             )
+            
+            // Create or update daily log for the day the fast ended
+            let endDate = calendar.startOfDay(for: endTime)
+            updateOrCreateDailyLog(for: endDate, fastingEntry: fastingHistory[index])
         }
+        
         fastingStartTime = nil
         isFasting = false
         saveData()
@@ -144,9 +161,20 @@ class FastingTrackerViewModel: ObservableObject {
     // MARK: - Water Methods
     
     func addWater(amount: Double) {
+        let calendar = Calendar.current
+        let now = Date()
         let litres = amount / 1000.0 // Convert ml to litres
-        dailyWaterIntake += litres
-        waterEntries.append(WaterEntry(amount: litres, timestamp: Date()))
+        waterEntries.append(WaterEntry(amount: litres, timestamp: now))
+        
+        // Recalculate today's total
+        let today = calendar.startOfDay(for: now)
+        dailyWaterIntake = waterEntries
+            .filter { calendar.isDate($0.timestamp, inSameDayAs: today) }
+            .reduce(0.0) { $0 + $1.amount }
+        
+        // Update daily log for today
+        updateOrCreateDailyLog(for: today, waterAmount: dailyWaterIntake)
+        
         saveData()
     }
     
@@ -173,15 +201,52 @@ class FastingTrackerViewModel: ObservableObject {
     
     func hasFastingOnDate(_ date: Date) -> Bool {
         let calendar = Calendar.current
-        return fastingHistory.contains { entry in
-            calendar.isDate(entry.startTime, inSameDayAs: date)
+        let targetDate = calendar.startOfDay(for: date)
+        return dailyLogs.contains { log in
+            calendar.isDate(log.date, inSameDayAs: targetDate) && log.fastingEntry != nil
         }
     }
     
     func hasWaterOnDate(_ date: Date) -> Bool {
         let calendar = Calendar.current
-        return waterEntries.contains { entry in
-            calendar.isDate(entry.timestamp, inSameDayAs: date)
+        let targetDate = calendar.startOfDay(for: date)
+        return dailyLogs.contains { log in
+            calendar.isDate(log.date, inSameDayAs: targetDate) && log.waterIntake > 0
+        }
+    }
+    
+    func getDailyLog(for date: Date) -> DailyLog? {
+        let calendar = Calendar.current
+        let targetDate = calendar.startOfDay(for: date)
+        return dailyLogs.first { log in
+            calendar.isDate(log.date, inSameDayAs: targetDate)
+        }
+    }
+    
+    private func updateOrCreateDailyLog(for date: Date, fastingEntry: FastingEntry? = nil, waterAmount: Double? = nil) {
+        let calendar = Calendar.current
+        let targetDate = calendar.startOfDay(for: date)
+        
+        if let index = dailyLogs.firstIndex(where: { calendar.isDate($0.date, inSameDayAs: targetDate) }) {
+            // Update existing log
+            var log = dailyLogs[index]
+            if let fasting = fastingEntry {
+                log.fastingEntry = fasting
+            }
+            if let water = waterAmount {
+                log.waterIntake = water
+            }
+            dailyLogs[index] = log
+        } else {
+            // Create new log
+            var log = DailyLog(date: targetDate)
+            if let fasting = fastingEntry {
+                log.fastingEntry = fasting
+            }
+            if let water = waterAmount {
+                log.waterIntake = water
+            }
+            dailyLogs.append(log)
         }
     }
     
@@ -211,6 +276,11 @@ class FastingTrackerViewModel: ObservableObject {
         // Save fasting history
         if let encoded = try? JSONEncoder().encode(fastingHistory) {
             UserDefaults.standard.set(encoded, forKey: "fastingHistory")
+        }
+        
+        // Save daily logs
+        if let encoded = try? JSONEncoder().encode(dailyLogs) {
+            UserDefaults.standard.set(encoded, forKey: "dailyLogs")
         }
         
         // Check if we need to reset daily water (new day)
@@ -251,7 +321,65 @@ class FastingTrackerViewModel: ObservableObject {
             fastingHistory = decoded
         }
         
+        // Load daily logs
+        if let data = UserDefaults.standard.data(forKey: "dailyLogs"),
+           let decoded = try? JSONDecoder().decode([DailyLog].self, from: data) {
+            dailyLogs = decoded
+        } else {
+            // If no logs exist, rebuild from existing data
+            rebuildLogsFromHistory()
+        }
+        
         checkAndResetDailyWater()
+    }
+    
+    private func rebuildLogsFromHistory() {
+        let calendar = Calendar.current
+        
+        // Rebuild logs from water entries - group by day
+        var waterByDay: [Date: Double] = [:]
+        for entry in waterEntries {
+            let entryDate = calendar.startOfDay(for: entry.timestamp)
+            waterByDay[entryDate, default: 0.0] += entry.amount
+        }
+        
+        for (date, amount) in waterByDay {
+            if let index = dailyLogs.firstIndex(where: { calendar.isDate($0.date, inSameDayAs: date) }) {
+                dailyLogs[index].waterIntake = amount
+            } else {
+                var log = DailyLog(date: date)
+                log.waterIntake = amount
+                dailyLogs.append(log)
+            }
+        }
+        
+        // Rebuild logs from fasting history
+        for fasting in fastingHistory {
+            if let endTime = fasting.endTime {
+                // Fast ended - log goes to the day it ended
+                let endDate = calendar.startOfDay(for: endTime)
+                if let index = dailyLogs.firstIndex(where: { calendar.isDate($0.date, inSameDayAs: endDate) }) {
+                    dailyLogs[index].fastingEntry = fasting
+                } else {
+                    var log = DailyLog(date: endDate)
+                    log.fastingEntry = fasting
+                    dailyLogs.append(log)
+                }
+            } else {
+                // Ongoing fast - log goes to the day it started
+                let startDate = calendar.startOfDay(for: fasting.startTime)
+                if let index = dailyLogs.firstIndex(where: { calendar.isDate($0.date, inSameDayAs: startDate) }) {
+                    dailyLogs[index].fastingEntry = fasting
+                } else {
+                    var log = DailyLog(date: startDate)
+                    log.fastingEntry = fasting
+                    dailyLogs.append(log)
+                }
+            }
+        }
+        
+        // Sort logs by date
+        dailyLogs.sort { $0.date < $1.date }
     }
     
     private func checkAndResetDailyWater() {
@@ -259,7 +387,20 @@ class FastingTrackerViewModel: ObservableObject {
         let calendar = Calendar.current
         
         if !calendar.isDateInToday(lastResetDate) {
-            // Reset daily intake but keep history
+            // New day - reset daily intake and finalize yesterday's log
+            let yesterday = calendar.date(byAdding: .day, value: -1, to: Date()) ?? Date()
+            let yesterdayStart = calendar.startOfDay(for: yesterday)
+            
+            // Finalize yesterday's water log
+            let yesterdayWater = waterEntries
+                .filter { calendar.isDate($0.timestamp, inSameDayAs: yesterday) }
+                .reduce(0.0) { $0 + $1.amount }
+            
+            if yesterdayWater > 0 {
+                updateOrCreateDailyLog(for: yesterdayStart, waterAmount: yesterdayWater)
+            }
+            
+            // Reset today's intake
             let today = Date()
             dailyWaterIntake = waterEntries
                 .filter { calendar.isDate($0.timestamp, inSameDayAs: today) }
@@ -312,6 +453,38 @@ struct FastingEntry: Codable, Identifiable {
     
     enum CodingKeys: String, CodingKey {
         case id, startTime, endTime, fastingWindowHours
+    }
+    
+    var duration: TimeInterval? {
+        guard let end = endTime else { return nil }
+        return end.timeIntervalSince(startTime)
+    }
+    
+    var formattedDuration: String {
+        guard let duration = duration else { return "Ongoing" }
+        let hours = Int(duration) / 3600
+        let minutes = (Int(duration) % 3600) / 60
+        return String(format: "%dh %dm", hours, minutes)
+    }
+}
+
+// MARK: - Daily Log Model
+
+struct DailyLog: Codable, Identifiable {
+    var id: UUID
+    let date: Date
+    var waterIntake: Double // in litres
+    var fastingEntry: FastingEntry?
+    
+    init(date: Date, waterIntake: Double = 0.0, fastingEntry: FastingEntry? = nil) {
+        self.id = UUID()
+        self.date = date
+        self.waterIntake = waterIntake
+        self.fastingEntry = fastingEntry
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case id, date, waterIntake, fastingEntry
     }
 }
 

@@ -29,6 +29,9 @@ struct ContentView: View {
                         // Water Section
                         waterSection
                         
+                        // Daily Log Section
+                        DailyLogView(viewModel: viewModel)
+                        
                         // Calendar Section
                         CalendarMonthView(viewModel: viewModel)
                     }
