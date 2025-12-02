@@ -19,13 +19,8 @@ struct DailyLogView: View {
                 .font(.title2)
                 .fontWeight(.bold)
                 .padding(.horizontal, 4)
-            
-            // Date Picker
-            DatePicker("Select Date", selection: $selectedDate, displayedComponents: .date)
-                .datePickerStyle(.compact)
-                .padding(.horizontal, 4)
-            
-            // Log for selected date
+
+            // Log for selected date (controlled by calendar selection)
             if let log = viewModel.getDailyLog(for: selectedDate) {
                 logCard(for: log)
             } else {
