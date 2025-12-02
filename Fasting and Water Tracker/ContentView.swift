@@ -271,7 +271,8 @@ struct ContentView: View {
                         Text("Water")
                             .font(.headline)
                             .foregroundColor(.secondary)
-                        Text("\(String(format: "%.1f", viewModel.dailyWaterIntake)) / \(String(format: "%.1f", viewModel.dailyTarget)) L")
+                        // Drive the UI from today's entries so it always reflects the current day
+                        Text("\(String(format: "%.1f", viewModel.currentDayWaterIntake())) / \(String(format: "%.1f", viewModel.dailyTarget)) L")
                             .font(.title2)
                             .fontWeight(.bold)
                     }

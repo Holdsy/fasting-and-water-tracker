@@ -160,17 +160,25 @@ class FastingTrackerViewModel: ObservableObject {
     
     // MARK: - Water Methods
     
+    /// Returns the total water intake (in litres) for the given date (defaults to today)
+    func currentDayWaterIntake(for date: Date = Date()) -> Double {
+        let calendar = Calendar.current
+        let day = calendar.startOfDay(for: date)
+        
+        return waterEntries
+            .filter { calendar.isDate($0.timestamp, inSameDayAs: day) }
+            .reduce(0.0) { $0 + $1.amount }
+    }
+    
     func addWater(amount: Double) {
         let calendar = Calendar.current
         let now = Date()
         let litres = amount / 1000.0 // Convert ml to litres
         waterEntries.append(WaterEntry(amount: litres, timestamp: now))
         
-        // Recalculate today's total
+        // Recalculate today's total from entries so UI is always driven by timestamps
         let today = calendar.startOfDay(for: now)
-        dailyWaterIntake = waterEntries
-            .filter { calendar.isDate($0.timestamp, inSameDayAs: today) }
-            .reduce(0.0) { $0 + $1.amount }
+        dailyWaterIntake = currentDayWaterIntake(for: today)
         
         // Update daily log for today
         updateOrCreateDailyLog(for: today, waterAmount: dailyWaterIntake)
@@ -194,7 +202,9 @@ class FastingTrackerViewModel: ObservableObject {
     }
     
     func waterProgress() -> Double {
-        return min(dailyWaterIntake / dailyTarget, 1.0)
+        // Always base progress on today's entries so it automatically resets with the new day
+        let todayIntake = currentDayWaterIntake()
+        return min(todayIntake / dailyTarget, 1.0)
     }
     
     // MARK: - Calendar Methods
@@ -402,18 +412,14 @@ class FastingTrackerViewModel: ObservableObject {
             
             // Reset today's intake
             let today = Date()
-            dailyWaterIntake = waterEntries
-                .filter { calendar.isDate($0.timestamp, inSameDayAs: today) }
-                .reduce(0.0) { $0 + $1.amount }
+            dailyWaterIntake = currentDayWaterIntake(for: today)
             
             UserDefaults.standard.set(Date(), forKey: "lastWaterResetDate")
             saveData()
         } else {
             // Recalculate today's intake
             let today = Date()
-            dailyWaterIntake = waterEntries
-                .filter { calendar.isDate($0.timestamp, inSameDayAs: today) }
-                .reduce(0.0) { $0 + $1.amount }
+            dailyWaterIntake = currentDayWaterIntake(for: today)
         }
     }
 }
