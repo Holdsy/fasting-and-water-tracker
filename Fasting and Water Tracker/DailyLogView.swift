@@ -9,7 +9,7 @@ import SwiftUI
 
 struct DailyLogView: View {
     @ObservedObject var viewModel: FastingTrackerViewModel
-    @State private var selectedDate: Date = Date()
+    @Binding var selectedDate: Date
     
     private let calendar = Calendar.current
     

@@ -9,6 +9,7 @@ import SwiftUI
 
 struct HistoryView: View {
     @ObservedObject var viewModel: FastingTrackerViewModel
+    @State private var selectedDate: Date = Date()
     
     var body: some View {
         NavigationView {
@@ -19,10 +20,10 @@ struct HistoryView: View {
                 ScrollView {
                     VStack(spacing: 20) {
                         // Calendar Section
-                        CalendarMonthView(viewModel: viewModel)
+                        CalendarMonthView(viewModel: viewModel, selectedDate: $selectedDate)
                         
                         // Daily Log Section
-                        DailyLogView(viewModel: viewModel)
+                        DailyLogView(viewModel: viewModel, selectedDate: $selectedDate)
                     }
                     .padding(.horizontal)
                     .padding(.bottom, 20)

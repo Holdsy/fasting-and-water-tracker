@@ -9,6 +9,7 @@ import SwiftUI
 
 struct CalendarMonthView: View {
     @ObservedObject var viewModel: FastingTrackerViewModel
+    @Binding var selectedDate: Date
     @State private var currentMonth = Date()
     
     private let calendar = Calendar.current
@@ -78,12 +79,20 @@ struct CalendarMonthView: View {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 8) {
                 ForEach(daysInMonth, id: \.self) { date in
                     if let date = date {
-                        CalendarDayView(
-                            date: date,
-                            isToday: calendar.isDateInToday(date),
-                            hasFasting: viewModel.hasFastingOnDate(date),
-                            hasWater: viewModel.hasWaterOnDate(date)
-                        )
+                        Button(action: {
+                            withAnimation {
+                                selectedDate = date
+                            }
+                        }) {
+                            CalendarDayView(
+                                date: date,
+                                isToday: calendar.isDateInToday(date),
+                                isSelected: calendar.isDate(selectedDate, inSameDayAs: date),
+                                hasFasting: viewModel.hasFastingOnDate(date),
+                                hasWater: viewModel.hasWaterOnDate(date)
+                            )
+                        }
+                        .buttonStyle(.plain)
                     } else {
                         Color.clear
                             .frame(height: 50)
@@ -135,6 +144,7 @@ struct CalendarMonthView: View {
 struct CalendarDayView: View {
     let date: Date
     let isToday: Bool
+    let isSelected: Bool
     let hasFasting: Bool
     let hasWater: Bool
     
@@ -143,8 +153,8 @@ struct CalendarDayView: View {
     var body: some View {
         VStack(spacing: 4) {
             Text("\(calendar.component(.day, from: date))")
-                .font(.system(size: 16, weight: isToday ? .bold : .regular))
-                .foregroundColor(isToday ? .tealTheme : .primary)
+                .font(.system(size: 16, weight: (isToday || isSelected) ? .bold : .regular))
+                .foregroundColor(isSelected ? .white : (isToday ? .tealTheme : .primary))
             
             HStack(spacing: 4) {
                 if hasFasting {
@@ -162,7 +172,11 @@ struct CalendarDayView: View {
             .frame(height: 12)
         }
         .frame(width: 50, height: 50)
-        .background(isToday ? Color.tealTheme.opacity(0.1) : Color.clear)
+        .background(
+            isSelected
+            ? Color.tealTheme
+            : (isToday ? Color.tealTheme.opacity(0.1) : Color.clear)
+        )
         .cornerRadius(8)
     }
 }
