@@ -18,11 +18,11 @@ struct HistoryView: View {
                 
                 ScrollView {
                     VStack(spacing: 20) {
-                        // Daily Log Section
-                        DailyLogView(viewModel: viewModel)
-                        
                         // Calendar Section
                         CalendarMonthView(viewModel: viewModel)
+                        
+                        // Daily Log Section
+                        DailyLogView(viewModel: viewModel)
                     }
                     .padding(.horizontal)
                     .padding(.bottom, 20)
