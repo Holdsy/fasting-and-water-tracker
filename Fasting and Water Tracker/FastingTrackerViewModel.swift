@@ -20,6 +20,7 @@ class FastingTrackerViewModel: ObservableObject {
     @Published var dailyWaterIntake: Double = 0.0 // in litres
     @Published var dailyTarget: Double = 2.0 // 2 litres
     @Published var waterEntries: [WaterEntry] = []
+    @Published var showWaterCelebration: Bool = false
     
     // History tracking
     @Published var fastingHistory: [FastingEntry] = []
@@ -243,12 +244,20 @@ class FastingTrackerViewModel: ObservableObject {
     func addWater(amount: Double) {
         let calendar = Calendar.current
         let now = Date()
+        let today = calendar.startOfDay(for: now)
+        
+        // Capture intake before adding, so we can detect when the goal is newly met
+        let previousIntake = currentDayWaterIntake(for: today)
         let litres = amount / 1000.0 // Convert ml to litres
         waterEntries.append(WaterEntry(amount: litres, timestamp: now))
         
         // Recalculate today's total from entries so UI is always driven by timestamps
-        let today = calendar.startOfDay(for: now)
         dailyWaterIntake = currentDayWaterIntake(for: today)
+        
+        // Trigger celebration once when the goal is reached or exceeded
+        if previousIntake < dailyTarget && dailyWaterIntake >= dailyTarget {
+            showWaterCelebration = true
+        }
         
         // Update daily log for today
         updateOrCreateDailyLog(for: today, waterAmount: dailyWaterIntake)
@@ -510,6 +519,7 @@ class FastingTrackerViewModel: ObservableObject {
             // Reset today's intake
             let today = Date()
             dailyWaterIntake = currentDayWaterIntake(for: today)
+            showWaterCelebration = false
             
             UserDefaults.standard.set(Date(), forKey: "lastWaterResetDate")
             saveData()

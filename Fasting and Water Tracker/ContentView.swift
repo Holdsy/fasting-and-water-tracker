@@ -55,6 +55,9 @@ struct ContentView: View {
         .sheet(isPresented: $showStartTimePicker) {
             startTimePickerSheet
         }
+        .fullScreenCover(isPresented: $viewModel.showWaterCelebration) {
+            WaterCelebrationView(isPresented: $viewModel.showWaterCelebration)
+        }
     }
     
     // MARK: - Fasting Section
