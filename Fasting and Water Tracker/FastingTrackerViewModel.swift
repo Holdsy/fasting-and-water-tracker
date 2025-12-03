@@ -89,6 +89,18 @@ class FastingTrackerViewModel: ObservableObject {
         saveData()
     }
     
+    /// Creates a new historical fast for a given day with explicit start & end times.
+    func addHistoricalFast(for date: Date, startTime: Date, endTime: Date) {
+        let entry = FastingEntry(startTime: startTime, endTime: endTime, fastingWindowHours: fastingWindowHours)
+        fastingHistory.append(entry)
+        
+        let calendar = Calendar.current
+        let targetDay = calendar.startOfDay(for: date)
+        updateOrCreateDailyLog(for: targetDay, fastingEntry: entry)
+        
+        saveData()
+    }
+    
     /// Updates the start & end time for a historical fast identified by entry ID.
     func updateHistoricalFast(entryID: UUID, newStartTime: Date, newEndTime: Date?) {
         // Update in fasting history
@@ -240,6 +252,33 @@ class FastingTrackerViewModel: ObservableObject {
         
         // Update daily log for today
         updateOrCreateDailyLog(for: today, waterAmount: dailyWaterIntake)
+        
+        saveData()
+    }
+    
+    /// Sets the total water intake (in litres) for a specific date, updating both entries and daily logs.
+    func setHistoricalWaterIntake(for date: Date, litres: Double) {
+        let calendar = Calendar.current
+        let targetDay = calendar.startOfDay(for: date)
+        
+        // Remove any existing entries for that day
+        waterEntries.removeAll { entry in
+            calendar.isDate(entry.timestamp, inSameDayAs: targetDay)
+        }
+        
+        if litres > 0 {
+            // Add a single synthetic entry at midday
+            let midday = calendar.date(byAdding: .hour, value: 12, to: targetDay) ?? targetDay
+            waterEntries.append(WaterEntry(amount: litres, timestamp: midday))
+        }
+        
+        // Update daily log
+        updateOrCreateDailyLog(for: targetDay, waterAmount: litres)
+        
+        // Keep today's running total in sync if we're editing today
+        if calendar.isDate(targetDay, inSameDayAs: Date()) {
+            dailyWaterIntake = litres
+        }
         
         saveData()
     }
