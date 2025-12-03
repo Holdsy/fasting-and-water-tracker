@@ -89,6 +89,64 @@ class FastingTrackerViewModel: ObservableObject {
         saveData()
     }
     
+    /// Updates the start & end time for a historical fast identified by entry ID.
+    func updateHistoricalFast(entryID: UUID, newStartTime: Date, newEndTime: Date?) {
+        // Update in fasting history
+        guard let index = fastingHistory.firstIndex(where: { $0.id == entryID }) else { return }
+        
+        let existing = fastingHistory[index]
+        let updatedEntry = FastingEntry(
+            id: existing.id,
+            startTime: newStartTime,
+            endTime: newEndTime,
+            fastingWindowHours: existing.fastingWindowHours
+        )
+        fastingHistory[index] = updatedEntry
+        
+        // Update any daily log that references this entry
+        if let logIndex = dailyLogs.firstIndex(where: { $0.fastingEntry?.id == entryID }) {
+            dailyLogs[logIndex].fastingEntry = updatedEntry
+        }
+        
+        saveData()
+    }
+    
+    /// Updates the start time of the current ongoing fast and adjusts history & daily logs.
+    func updateFastingStartTime(to newStartTime: Date) {
+        guard isFasting, let currentStart = fastingStartTime else { return }
+        
+        fastingStartTime = newStartTime
+        
+        let calendar = Calendar.current
+        let oldStartDay = calendar.startOfDay(for: currentStart)
+        let newStartDay = calendar.startOfDay(for: newStartTime)
+        
+        // Update the ongoing fasting history entry, if any
+        if let lastIndex = fastingHistory.indices.last,
+           fastingHistory[lastIndex].endTime == nil {
+            let existing = fastingHistory[lastIndex]
+            let updatedEntry = FastingEntry(
+                id: existing.id,
+                startTime: newStartTime,
+                endTime: existing.endTime,
+                fastingWindowHours: existing.fastingWindowHours
+            )
+            fastingHistory[lastIndex] = updatedEntry
+            
+            // Remove reference from the old daily log day if it pointed to this entry
+            if let oldLogIndex = dailyLogs.firstIndex(where: { calendar.isDate($0.date, inSameDayAs: oldStartDay) }) {
+                if dailyLogs[oldLogIndex].fastingEntry?.id == existing.id {
+                    dailyLogs[oldLogIndex].fastingEntry = nil
+                }
+            }
+            
+            // Attach the updated entry to the new start day log
+            updateOrCreateDailyLog(for: newStartDay, fastingEntry: updatedEntry)
+        }
+        
+        saveData()
+    }
+    
     func setFastingWindow(fastingHours: Int, eatingHours: Int) {
         fastingWindowHours = fastingHours
         eatingWindowHours = eatingHours
@@ -452,6 +510,13 @@ struct FastingEntry: Codable, Identifiable {
     
     init(startTime: Date, endTime: Date? = nil, fastingWindowHours: Int) {
         self.id = UUID()
+        self.startTime = startTime
+        self.endTime = endTime
+        self.fastingWindowHours = fastingWindowHours
+    }
+    
+    init(id: UUID, startTime: Date, endTime: Date? = nil, fastingWindowHours: Int) {
+        self.id = id
         self.startTime = startTime
         self.endTime = endTime
         self.fastingWindowHours = fastingWindowHours

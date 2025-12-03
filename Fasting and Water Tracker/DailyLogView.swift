@@ -10,6 +10,10 @@ import SwiftUI
 struct DailyLogView: View {
     @ObservedObject var viewModel: FastingTrackerViewModel
     @Binding var selectedDate: Date
+    @State private var showEditFastSheet = false
+    @State private var editingFast: FastingEntry?
+    @State private var editedStartTime: Date = Date()
+    @State private var editedEndTime: Date = Date()
     
     private let calendar = Calendar.current
     
@@ -19,7 +23,7 @@ struct DailyLogView: View {
                 .font(.title2)
                 .fontWeight(.bold)
                 .padding(.horizontal, 4)
-
+        
             // Log for selected date (controlled by calendar selection)
             if let log = viewModel.getDailyLog(for: selectedDate) {
                 logCard(for: log)
@@ -31,6 +35,11 @@ struct DailyLogView: View {
         .background(Color(.systemBackground))
         .cornerRadius(20)
         .shadow(color: Color.black.opacity(0.08), radius: 10, x: 0, y: 4)
+        .sheet(isPresented: $showEditFastSheet) {
+            if let fast = editingFast {
+                editFastSheet(for: fast)
+            }
+        }
     }
     
     private func logCard(for log: DailyLog) -> some View {
@@ -70,40 +79,50 @@ struct DailyLogView: View {
             
             // Fasting Entry
             if let fasting = log.fastingEntry {
-                HStack {
-                    Image(systemName: "moon.fill")
-                        .font(.title3)
-                        .foregroundColor(.tealTheme)
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Fasting")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                Button(action: {
+                    // Only allow editing when the fast has ended
+                    guard let endTime = fasting.endTime else { return }
+                    editingFast = fasting
+                    editedStartTime = fasting.startTime
+                    editedEndTime = endTime
+                    showEditFastSheet = true
+                }) {
+                    HStack {
+                        Image(systemName: "moon.fill")
+                            .font(.title3)
+                            .foregroundColor(.tealTheme)
                         
-                        if let endTime = fasting.endTime {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Duration: \(fasting.formattedDuration)")
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Fasting")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            
+                            if let endTime = fasting.endTime {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Duration: \(fasting.formattedDuration)")
+                                        .font(.title3)
+                                        .fontWeight(.semibold)
+                                    Text("Started: \(formatTime(fasting.startTime))")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text("Ended: \(formatTime(endTime))")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            } else {
+                                Text("Ongoing")
                                     .font(.title3)
                                     .fontWeight(.semibold)
-                                Text("Started: \(formatTime(fasting.startTime))")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Text("Ended: \(formatTime(endTime))")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
                             }
-                        } else {
-                            Text("Ongoing")
-                                .font(.title3)
-                                .fontWeight(.semibold)
                         }
+                        
+                        Spacer()
                     }
-                    
-                    Spacer()
+                    .padding()
+                    .background(Color.tealTheme.opacity(0.1))
+                    .cornerRadius(12)
                 }
-                .padding()
-                .background(Color.tealTheme.opacity(0.1))
-                .cornerRadius(12)
+                .buttonStyle(.plain)
             }
         }
     }
@@ -132,6 +151,48 @@ struct DailyLogView: View {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
         return formatter.string(from: date)
+    }
+    
+    // MARK: - Edit Fast Sheet
+    
+    private func editFastSheet(for fast: FastingEntry) -> some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Fasting Times")) {
+                    DatePicker(
+                        "Start Time",
+                        selection: $editedStartTime,
+                        displayedComponents: [.date, .hourAndMinute]
+                    )
+                    DatePicker(
+                        "End Time",
+                        selection: $editedEndTime,
+                        displayedComponents: [.date, .hourAndMinute]
+                    )
+                }
+                
+                Section {
+                    Button("Save") {
+                        viewModel.updateHistoricalFast(
+                            entryID: fast.id,
+                            newStartTime: editedStartTime,
+                            newEndTime: editedEndTime
+                        )
+                        showEditFastSheet = false
+                    }
+                    .foregroundColor(.tealTheme)
+                }
+            }
+            .navigationTitle("Edit Fast")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Cancel") {
+                        showEditFastSheet = false
+                    }
+                }
+            }
+        }
     }
 }
 

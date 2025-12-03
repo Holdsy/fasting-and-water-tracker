@@ -14,6 +14,8 @@ struct ContentView: View {
     @State private var customFastingHours: String = ""
     @State private var customEatingHours: String = ""
     @State private var customWaterAmount: String = ""
+    @State private var showStartTimePicker = false
+    @State private var editedStartTime: Date = Date()
     
     var body: some View {
         NavigationView {
@@ -49,6 +51,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showCustomWaterAmount) {
             customWaterAmountSheet
+        }
+        .sheet(isPresented: $showStartTimePicker) {
+            startTimePickerSheet
         }
     }
     
@@ -120,9 +125,15 @@ struct ContentView: View {
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             if let startTime = viewModel.fastingStartTime {
-                                Text(formatTime(startTime))
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
+                                Button(action: {
+                                    editedStartTime = startTime
+                                    showStartTimePicker = true
+                                }) {
+                                    Text(formatTime(startTime))
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
                         
@@ -426,6 +437,39 @@ struct ContentView: View {
                     Button("Cancel") {
                         showCustomWaterAmount = false
                         customWaterAmount = ""
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - Start Time Picker Sheet
+    
+    private var startTimePickerSheet: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Adjust Start Time")) {
+                    DatePicker(
+                        "Start Time",
+                        selection: $editedStartTime,
+                        displayedComponents: [.date, .hourAndMinute]
+                    )
+                }
+                
+                Section {
+                    Button("Save") {
+                        viewModel.updateFastingStartTime(to: editedStartTime)
+                        showStartTimePicker = false
+                    }
+                    .foregroundColor(.tealTheme)
+                }
+            }
+            .navigationTitle("Edit Start Time")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Cancel") {
+                        showStartTimePicker = false
                     }
                 }
             }
